@@ -1,0 +1,138 @@
+---
+title: "DATA-SCIENCE2"
+format: html
+editor: visual
+---
+
+Jeu de données
+
+```{r}
+
+file_path <- "/Users/aya31/Downloads/farms_train.csv"
+
+data <- read.csv(file_path, header = TRUE, sep = ";", fill = TRUE)
+
+# Remplacer les virgules par des points
+data[] <- lapply(data, function(x) {
+  if (is.character(x)) as.numeric(gsub(",", ".", x)) else x
+})
+
+head(data)
+
+```
+
+```{r}
+# Charger les bibliothèques nécessaires
+library(ggplot2)
+library(GGally)
+library(dplyr)
+
+# Charger les données
+data <- read.csv("/Users/aya31/Downloads/farms_train.csv", header = TRUE, sep = ";")
+
+# Transformer les colonnes avec des virgules en points décimaux si nécessaire
+data[] <- lapply(data, function(x) {
+  if (is.character(x)) as.numeric(gsub(",", ".", x)) else x
+})
+
+# 1. Présenter un aperçu des données
+cat("Dimensions du jeu de données :\n")
+print(dim(data))
+
+cat("\nTypes de variables :\n")
+print(str(data))
+
+cat("\nPrésence de valeurs manquantes :\n")
+print(colSums(is.na(data)))
+
+# 2. Visualisations pour explorer les distributions
+
+# Histogrammes pour chaque variable numérique
+num_vars <- names(data)[sapply(data, is.numeric)]
+for (var in num_vars) {
+  p <- ggplot(data, aes_string(x = var)) +
+    geom_histogram(binwidth = 0.5, fill = "skyblue", color = "black") +
+    labs(title = paste("Distribution de", var), x = var, y = "Fréquence") +
+    theme_minimal()
+  print(p)
+}
+
+# Boxplots pour chaque variable en fonction de la variable cible (DIFF)
+for (var in num_vars) {
+  if (var != "DIFF") { # Exclure la variable cible
+    p <- ggplot(data, aes(x = as.factor(DIFF), y = get(var), fill = as.factor(DIFF))) +
+      geom_boxplot() +
+      labs(title = paste("Boxplot de", var, "en fonction de DIFF"),
+           x = "DIFF", y = var) +
+      theme_minimal()
+    print(p)
+  }
+}
+
+# Pair plots pour visualiser les relations entre les variables numériques
+ggpairs(data, columns = num_vars, aes(color = as.factor(DIFF), alpha = 0.5)) +
+  theme_minimal()
+
+# 3. Analyse des corrélations
+cor_matrix <- cor(data[, num_vars], use = "complete.obs")
+cat("\nMatrice de corrélation :\n")
+print(cor_matrix)
+
+# Visualiser la matrice de corrélation
+library(corrplot)
+corrplot(cor_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45, addCoef.col = "black")
+
+```
+
+On etudie le lien entre les variable cible et et les **variables quantitatives** avec des boxplots.
+
+```{r}
+
+str(data)
+
+# Vérifier si 'DIFF' est binaire (0/1), sinon la transformer
+data$DIFF <- as.factor(data$DIFF)
+
+# Modèle de régression logistique
+modele_log <- glm(DIFF ~ ., data = data, family = binomial)
+
+# Résumé du modèle
+summary(modele_log)
+
+# Prévoir les probabilités pour les données d'entraînement
+predictions <- predict(modele_log, type = "response")
+
+# Si vous voulez classer les probabilités en classes (0 ou 1) avec un seuil de 0.5
+class_predictions <- ifelse(predictions > 0.5, 1, 0)
+
+# Matrice de confusion pour évaluer les performances du modèle
+table(Predicted = class_predictions, Actual = data$DIFF)
+
+```
+
+Métrique
+
+```{r}
+
+# Charger les bibliothèques nécessaires
+library(caret)
+
+# Matrice de confusion
+conf_matrix <- table(Predicted = class_predictions, Actual = data$DIFF)
+
+# Calcul des métriques
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+
+# Utiliser la fonction confusionMatrix du package caret pour plus de métriques
+confusion <- confusionMatrix(as.factor(class_predictions), as.factor(data$DIFF), positive = "1")
+
+# Afficher les métriques
+print(confusion)
+
+# Ou bien afficher les métriques principales directement
+cat("Accuracy:", accuracy, "\n")
+cat("Precision:", confusion$byClass["Precision"], "\n")
+cat("Recall:", confusion$byClass["Recall"], "\n")
+cat("F1 Score:", confusion$byClass["F1"], "\n")
+
+```
